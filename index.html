@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SubBurn - Burn Subtitles onto Video</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-card: #1a1a26;
+  --bg-input: #22222f;
+  --bg-hover: #2a2a3a;
+  --accent: #ff6b35;
+  --accent-glow: rgba(255, 107, 53, 0.3);
+  --accent-dim: rgba(255, 107, 53, 0.15);
+  --text-primary: #e8e8f0;
+  --text-secondary: #8888a0;
+  --text-dim: #555570;
+  --border: #2a2a3d;
+  --border-focus: #ff6b35;
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #f59e0b;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.app-container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid var(--border);
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-icon {
+  width: 44px; height: 44px; background: linear-gradient(135deg, var(--accent), #ff8f65);
+  border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; box-shadow: 0 4px 20px var(--accent-glow);
+}
+.logo h1 {
+  font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.logo p { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.header-badge {
+  padding: 6px 14px; background: var(--accent-dim); border: 1px solid rgba(255,107,53,0.3);
+  border-radius: 20px; font-size: 12px; color: var(--accent); font-weight: 500;
+}
+
+.main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
+  padding: 24px; transition: border-color 0.3s;
+}
+.card:hover { border-color: rgba(255,107,53,0.2); }
+.card-title {
+  display: flex; align-items: center; gap: 10px; font-size: 16px;
+  font-weight: 600; margin-bottom: 20px; color: var(--text-primary);
+}
+.card-title .icon {
+  width: 32px; height: 32px; background: var(--accent-dim); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+
+.upload-zone {
+  border: 2px dashed var(--border); border-radius: 12px; padding: 32px 20px;
+  text-align: center; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
+}
+.upload-zone:hover { border-color: var(--accent); background: var(--accent-dim); }
+.upload-zone.has-file { border-color: var(--success); border-style: solid; background: rgba(34,197,94,0.05); }
+.upload-zone .upload-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+.upload-zone .upload-label { font-size: 15px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+.upload-zone .upload-hint { font-size: 12px; color: var(--text-secondary); }
+.upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+.file-info {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px;
+  padding: 10px 14px; background: var(--bg-input); border-radius: 8px; font-size: 13px;
+}
+.file-info .file-name {
+  flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.file-info .file-size { color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+.file-info .remove-btn {
+  background: none; border: none; color: var(--error); cursor: pointer; font-size: 16px; padding: 2px; line-height: 1;
+}
+
+.form-group { margin-bottom: 16px; }
+.form-group:last-child { margin-bottom: 0; }
+.form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+select, input[type="number"], input[type="text"], input[type="color"] {
+  width: 100%; padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-primary); font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px; transition: border-color 0.2s; outline: none;
+}
+select:focus, input:focus { border-color: var(--accent); }
+select {
+  cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238888a0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; padding-right: 32px;
+}
+input[type="color"] { padding: 4px; height: 42px; cursor: pointer; }
+input[type="range"] {
+  width: 100%; height: 6px; -webkit-appearance: none; appearance: none;
+  background: var(--bg-input); border-radius: 3px; outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent);
+  border-radius: 50%; cursor: pointer; box-shadow: 0 2px 8px var(--accent-glow);
+}
+.range-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+.toggle-switch { position: relative; width: 44px; height: 24px; cursor: pointer; }
+.toggle-switch input { display: none; }
+.toggle-slider {
+  position: absolute; inset: 0; background: var(--bg-input); border-radius: 12px;
+  border: 1px solid var(--border); transition: all 0.3s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute; width: 18px; height: 18px; background: var(--text-secondary);
+  border-radius: 50%; top: 2px; left: 2px; transition: all 0.3s;
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); background: white; }
+
+.color-row { display: flex; align-items: center; gap: 12px; }
+.color-preview {
+  width: 36px; height: 36px; border-radius: 8px; border: 2px solid var(--border);
+  cursor: pointer; position: relative; overflow: hidden;
+}
+.color-preview input[type="color"] {
+  position: absolute; inset: -8px; width: 52px; height: 52px; border: none; cursor: pointer;
+}
+
+.position-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 140px; margin: 0 auto; }
+.pos-btn {
+  width: 100%; aspect-ratio: 2 / 1; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer; transition: all 0.2s; color: var(--text-dim); font-size: 10px;
+}
+.pos-btn:hover { border-color: var(--accent); color: var(--text-secondary); }
+.pos-btn.active { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
+
+.preview-container {
+  background: #000; border-radius: 12px; overflow: hidden; position: relative;
+  aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
+}
+.preview-container video { width: 100%; height: 100%; object-fit: contain; }
+.preview-placeholder { color: var(--text-dim); text-align: center; font-size: 14px; }
+.preview-placeholder .icon { font-size: 40px; display: block; margin-bottom: 10px; }
+
+.subtitle-overlay {
+  position: absolute; pointer-events: none; transition: font-size 0.15s, color 0.15s;
+  display: inline-block; white-space: nowrap;
+}
+
+.preview-container:fullscreen { background: #000; }
+.preview-container:fullscreen video { width: 100%; height: 100%; object-fit: contain; }
+.preview-container:fullscreen .subtitle-overlay { z-index: 10; }
+.preview-container:-webkit-full-screen .subtitle-overlay { z-index: 10; }
+
+.fs-btn {
+  position: absolute; top: 8px; right: 8px; width: 32px; height: 32px;
+  background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+  color: white; font-size: 14px; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; transition: all 0.2s; z-index: 5; opacity: 0;
+}
+.preview-container:hover .fs-btn { opacity: 1; }
+.fs-btn:hover { background: rgba(255,107,53,0.8); }
+
+/* Custom video controls bar */
+.video-controls {
+  display: none; flex-direction: column; gap: 6px; padding: 10px 12px;
+  background: var(--bg-input); border-radius: 8px; margin-bottom: 4px;
+  width: 100%; box-sizing: border-box; overflow: hidden;
+}
+.video-controls.visible { display: flex; }
+.vc-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+}
+.vc-btn {
+  background: none; border: none; color: var(--text-secondary); cursor: pointer;
+  font-size: 14px; padding: 2px; line-height: 1; transition: color 0.2s; flex-shrink: 0;
+}
+.vc-btn:hover { color: var(--accent); }
+.vc-time {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+/* Progress bar */
+.vc-seek {
+  flex: 1; min-width: 0; height: 5px; -webkit-appearance: none; appearance: none;
+  background: linear-gradient(to right, var(--accent) 0%, var(--accent) 0%, #2a2a3d 0%, #2a2a3d 100%);
+  border-radius: 3px; outline: none; cursor: pointer;
+  margin: 0; padding: 0; display: block;
+}
+.vc-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; background: var(--accent);
+  border-radius: 50%; cursor: pointer; box-shadow: 0 0 4px rgba(255,107,53,0.4);
+}
+
+/* Volume bar */
+.vc-vol-wrap {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0; max-width: 80px;
+}
+.vc-vol {
+  width: 48px; flex-shrink: 0; height: 4px; -webkit-appearance: none; appearance: none;
+  background: linear-gradient(to right, #8888a0 0%, #8888a0 100%, #2a2a3d 100%, #2a2a3d 100%);
+  border-radius: 2px; outline: none; cursor: pointer;
+  margin: 0; padding: 0; display: block;
+}
+.vc-vol::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 8px; height: 8px; background: #8888a0;
+  border-radius: 50%; cursor: pointer;
+}
+
+.sub-nav {
+  display: none; align-items: center; justify-content: center; gap: 12px; margin: 8px 0;
+}
+.sub-nav.visible { display: flex; }
+.sub-nav-btn {
+  width: 32px; height: 32px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+}
+.sub-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sub-nav-info {
+  font-size: 12px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;
+  min-width: 60px; text-align: center;
+}
+
+.process-section { grid-column: 1 / -1; }
+.process-btn {
+  width: 100%; padding: 16px; background: linear-gradient(135deg, var(--accent), #ff8f65);
+  border: none; border-radius: 12px; color: white; font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 17px; font-weight: 700; cursor: pointer; transition: all 0.3s;
+  box-shadow: 0 4px 24px var(--accent-glow); position: relative; overflow: hidden;
+}
+.process-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px var(--accent-glow); }
+.process-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.process-btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  transform: translateX(-100%);
+}
+.process-btn:hover::after { animation: shimmer 1.5s ease infinite; }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+
+.progress-container { margin-top: 16px; display: none; }
+.progress-container.visible { display: block; }
+.progress-bar-track { height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+.progress-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), #ff8f65);
+  border-radius: 4px; width: 0%; transition: width 0.3s;
+}
+.progress-text { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+
+.status-msg { margin-top: 12px; padding: 12px 16px; border-radius: 10px; font-size: 13px; display: none; }
+.status-msg.visible { display: flex; align-items: center; gap: 10px; }
+.status-msg.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5; }
+.status-msg.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); color: #86efac; }
+.status-msg.info { background: rgba(255,107,53,0.1); border: 1px solid rgba(255,107,53,0.2); color: #ffb088; }
+
+.estimate-box {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+  background: var(--bg-input); border-radius: 10px; margin-top: 8px;
+}
+.estimate-icon { font-size: 20px; }
+.estimate-info { flex: 1; }
+.estimate-label { font-size: 11px; color: var(--text-secondary); }
+.estimate-value { font-size: 16px; font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--text-primary); }
+.estimate-value.over-limit { color: var(--error); }
+
+.section-divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+.download-area { display: none; margin-top: 16px; }
+.download-area.visible { display: block; }
+.download-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+  padding: 14px; background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 10px; color: var(--success); font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s;
+}
+.download-btn:hover { background: rgba(34,197,94,0.25); }
+
+.ffmpeg-note {
+  padding: 16px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);
+  border-radius: 10px; font-size: 12px; color: var(--warning); line-height: 1.7; margin-bottom: 16px;
+}
+.ffmpeg-note code {
+  font-family: 'JetBrains Mono', monospace; background: rgba(245,158,11,0.15);
+  padding: 2px 6px; border-radius: 4px; font-size: 11px;
+}
+
+.preset-btn {
+  padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px;
+  font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; cursor: pointer;
+  transition: all 0.2s; white-space: nowrap;
+}
+.preset-btn.save { background: var(--accent-dim); color: var(--accent); border-color: rgba(255,107,53,0.3); }
+.preset-btn.save:hover { background: var(--accent); color: white; }
+.preset-btn.load { background: var(--bg-input); color: var(--text-primary); }
+.preset-btn.load:hover { border-color: var(--accent); }
+.preset-btn.del { background: var(--bg-input); color: var(--error); padding: 10px 12px; }
+.preset-btn.del:hover { background: rgba(239,68,68,0.15); }
+
+.full-width { grid-column: 1 / -1; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🎬</div>
+      <div><h1>SubBurn</h1><p>Burn Subtitles onto Video</p></div>
+    </div>
+    <div class="header-badge">Client-Side FFmpeg</div>
+  </div>
+
+  <div class="ffmpeg-note">
+    ⚠️ This tool renders subtitles using Canvas and encodes with <code>MediaRecorder</code> + <code>FFmpeg.wasm</code> for audio muxing.
+    Processing happens entirely in your browser. Large videos may take several minutes — recommended to work with files up to 500MB.
+  </div>
+
+  <div class="main-grid">
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-title"><div class="icon">📁</div> Upload Files</div>
+      <div class="form-group">
+        <div class="form-label">Video File</div>
+        <div class="upload-zone" id="videoZone">
+          <span class="upload-icon">🎥</span>
+          <div class="upload-label">Drag a video file here or click to browse</div>
+          <div class="upload-hint">MP4 • MKV • MOV</div>
+          <input type="file" id="videoInput" accept=".mp4,.mkv,.mov,video/mp4,video/x-matroska,video/quicktime">
+        </div>
+        <div class="file-info" id="videoInfo" style="display:none">
+          <span>🎥</span><span class="file-name" id="videoFileName"></span>
+          <span class="file-size" id="videoFileSize"></span>
+          <button class="remove-btn" onclick="removeFile('video')">✕</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Subtitle File</div>
+        <div class="upload-zone" id="subZone">
+          <span class="upload-icon">📝</span>
+          <div class="upload-label">Drag a subtitle file here or click to browse</div>
+          <div class="upload-hint">SRT • VTT</div>
+          <input type="file" id="subInput" accept=".srt,.vtt,text/vtt,application/x-subrip">
+        </div>
+        <div class="file-info" id="subInfo" style="display:none">
+          <span>📝</span><span class="file-name" id="subFileName"></span>
+          <span class="file-size" id="subFileSize"></span>
+          <button class="remove-btn" onclick="removeFile('sub')">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="card">
+      <div class="card-title"><div class="icon">👁️</div> Preview</div>
+      <div class="preview-container" id="previewContainer">
+        <div class="preview-placeholder" id="previewPlaceholder">
+          <span class="icon">📺</span> Upload a video to preview
+        </div>
+        <video id="previewVideo" style="display:none"></video>
+        <div class="subtitle-overlay" id="subtitleOverlay" style="display:none">
+          Sample Subtitle Text - Preview
+        </div>
+        <button class="fs-btn" id="fsBtn" title="Fullscreen Preview" onclick="toggleFullscreen()">⛶</button>
+      </div>
+      <div class="video-controls" id="videoControls">
+        <div class="vc-row">
+          <input type="range" class="vc-seek" id="vcSeek" min="0" max="100" step="0.1" value="0">
+        </div>
+        <div class="vc-row">
+          <button class="vc-btn" id="vcPlayBtn" onclick="togglePlay()">▶</button>
+          <span class="vc-time" id="vcTime">0:00 / 0:00</span>
+          <div style="flex:1"></div>
+          <div class="vc-vol-wrap">
+            <button class="vc-btn" id="vcMuteBtn" onclick="toggleMute()">🔊</button>
+            <input type="range" class="vc-vol" id="vcVol" min="0" max="100" step="1" value="100">
+          </div>
+        </div>
+      </div>
+      <div class="sub-nav" id="subNav">
+        <button class="sub-nav-btn" onclick="navigateSub(-1)">◀</button>
+        <span class="sub-nav-info" id="subNavInfo">1 / 1</span>
+        <button class="sub-nav-btn" onclick="navigateSub(1)">▶</button>
+      </div>
+      <div class="estimate-box">
+        <span class="estimate-icon">📊</span>
+        <div class="estimate-info">
+          <div class="estimate-label">Estimated output video size</div>
+          <div class="estimate-value" id="estimatedSize">— MB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Font Settings -->
+    <div class="card">
+      <div class="card-title"><div class="icon">🔤</div> Font Settings</div>
+      <div class="form-group">
+        <div class="form-label">Font Family</div>
+        <select id="fontFamily">
+          <option value="Arial">Arial</option><option value="Helvetica">Helvetica</option>
+          <option value="Verdana">Verdana</option><option value="Tahoma">Tahoma</option>
+          <option value="Trebuchet MS">Trebuchet MS</option><option value="Georgia">Georgia</option>
+          <option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option>
+          <option value="Impact">Impact</option><option value="Comic Sans MS">Comic Sans MS</option>
+          <option value="Lucida Console">Lucida Console</option>
+          <option value="Liberation Sans" selected>Liberation Sans</option>
+          <option value="DejaVu Sans">DejaVu Sans</option><option value="Noto Sans">Noto Sans</option>
+          <option value="Noto Sans Hebrew">Noto Sans Hebrew</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">Font Size (px)</div>
+          <input type="number" id="fontSize" value="24" min="8" max="120" step="1">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Font Weight</div>
+          <select id="fontWeight">
+            <option value="300">Light (300)</option><option value="400">Regular (400)</option>
+            <option value="500">Medium (500)</option><option value="600" selected>Semi-Bold (600)</option>
+            <option value="700">Bold (700)</option><option value="800">Extra-Bold (800)</option>
+            <option value="900">Black (900)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Font Color</div>
+        <div class="color-row">
+          <div class="color-preview"><input type="color" id="fontColor" value="#ffffff"></div>
+          <input type="text" id="fontColorHex" value="#ffffff" style="flex:1" maxlength="7">
+        </div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="form-group">
+        <div class="form-label">Outline — Stroke Width (px)</div>
+        <div class="form-row">
+          <input type="number" id="outlineSize" value="2" min="0" max="10" step="0.5">
+          <div class="color-row">
+            <div class="color-preview"><input type="color" id="outlineColor" value="#000000"></div>
+            <input type="text" id="outlineColorHex" value="#000000" style="flex:1" maxlength="7">
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Shadow — Depth (px)</div>
+        <div class="form-row">
+          <input type="number" id="shadowDepth" value="1" min="0" max="10" step="0.5">
+          <div class="color-row">
+            <div class="color-preview"><input type="color" id="shadowColor" value="#000000"></div>
+            <input type="text" id="shadowColorHex" value="#000000" style="flex:1" maxlength="7">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Background & Position -->
+    <div class="card">
+      <div class="card-title"><div class="icon">🎨</div> Background & Position</div>
+      <div class="form-group">
+        <div class="toggle-row">
+          <span class="form-label" style="margin:0">Background Box</span>
+          <label class="toggle-switch"><input type="checkbox" id="bgEnabled"><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+      <div id="bgSettings" style="opacity:0.4; pointer-events:none; transition: all 0.3s;">
+        <div class="form-row">
+          <div class="form-group">
+            <div class="form-label">Background Color</div>
+            <div class="color-row">
+              <div class="color-preview"><input type="color" id="bgColor" value="#000000"></div>
+              <input type="text" id="bgColorHex" value="#000000" style="flex:1" maxlength="7">
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Background Opacity</div>
+            <input type="range" id="bgOpacity" min="0" max="100" value="60">
+            <div class="range-labels"><span>Transparent</span><span id="bgOpacityVal">60%</span><span>Opaque</span></div>
+          </div>
+        </div>
+        <div class="section-divider"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="form-label">Corner Radius (px)</div>
+            <input type="number" id="bgRadius" value="6" min="0" max="30" step="1">
+          </div>
+          <div class="form-group">
+            <div class="form-label">Vertical Padding (px)</div>
+            <input type="number" id="bgPadding" value="6" min="0" max="40" step="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Horizontal Padding (px)</div>
+          <input type="number" id="bgPaddingH" value="14" min="0" max="60" step="1">
+        </div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="form-group">
+        <div class="form-label" style="text-align:center">Subtitle Position</div>
+        <div class="position-grid">
+          <button class="pos-btn" data-pos="7">↖</button><button class="pos-btn" data-pos="8">↑</button><button class="pos-btn" data-pos="9">↗</button>
+          <button class="pos-btn" data-pos="4">←</button><button class="pos-btn" data-pos="5">⊙</button><button class="pos-btn" data-pos="6">→</button>
+          <button class="pos-btn" data-pos="1">↙</button><button class="pos-btn active" data-pos="2">↓</button><button class="pos-btn" data-pos="3">↘</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <div class="form-label">Edge Margin (px)</div>
+        <input type="number" id="marginV" value="20" min="0" max="200" step="5">
+      </div>
+    </div>
+
+    <!-- Presets -->
+    <div class="card full-width">
+      <div class="card-title"><div class="icon">💾</div> Presets</div>
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="form-group" style="flex:1; min-width:180px; margin-bottom:0;">
+          <div class="form-label">Save Current Settings</div>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="presetName" placeholder="Preset name..." style="flex:1">
+            <button class="preset-btn save" onclick="savePreset()">Save</button>
+          </div>
+        </div>
+        <div class="form-group" style="flex:1; min-width:180px; margin-bottom:0;">
+          <div class="form-label">Load Preset</div>
+          <div style="display:flex; gap:8px;">
+            <select id="presetSelect" style="flex:1"><option value="">— Select preset —</option></select>
+            <button class="preset-btn load" onclick="loadPreset()">Load</button>
+            <button class="preset-btn del" onclick="deletePreset()">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="card full-width">
+      <div class="card-title"><div class="icon">⚙️</div> Output Settings</div>
+      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <div class="form-label">Resolution</div>
+          <select id="resolution">
+            <option value="original">Original</option><option value="3840:2160">4K (3840×2160)</option>
+            <option value="1920:1080" selected>Full HD (1920×1080)</option><option value="1280:720">HD (1280×720)</option>
+            <option value="854:480">SD (854×480)</option><option value="640:360">360p (640×360)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Export Format</div>
+          <select id="outputFormat"><option value="mp4" selected>MP4 (H.264)</option></select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Max File Size (MB)</div>
+          <input type="number" id="maxFileSize" value="0" min="0" step="10" placeholder="0 = No limit">
+          <div class="range-labels"><span>0 = No limit</span></div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Quality (CRF)</div>
+          <input type="number" id="crfValue" value="23" min="0" max="51" step="1">
+          <div class="range-labels"><span>0 = Best</span><span>51 = Lowest</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Process -->
+    <div class="process-section">
+      <button class="process-btn" id="processBtn" disabled onclick="startProcess()">🔥 Start Burning Subtitles</button>
+      <div class="progress-container" id="progressContainer">
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+        <div class="progress-text"><span id="progressLabel">Preparing...</span><span id="progressPct">0%</span></div>
+      </div>
+      <div class="status-msg" id="statusMsg"><span id="statusIcon"></span><span id="statusText"></span></div>
+      <div class="download-area" id="downloadArea">
+        <a class="download-btn" id="downloadBtn" download>⬇️ Download Subtitled Video</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+let videoFile = null, subFile = null, selectedPosition = 2;
+let ffmpeg = null, ffmpegLoaded = false;
+let parsedSubs = [], parsedSubLines = [], currentSubIndex = 0;
+let syncActive = false, syncRAF = null;
+
+// ===== HELPERS =====
+function formatSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+  return (b / 1073741824).toFixed(2) + ' GB';
+}
+function fmtTime(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+function syncColorInputs(cId, hId) {
+  const c = document.getElementById(cId), h = document.getElementById(hId);
+  c.addEventListener('input', () => { h.value = c.value; updatePreview(); });
+  h.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(h.value)) { c.value = h.value; updatePreview(); } });
+}
+syncColorInputs('fontColor', 'fontColorHex');
+syncColorInputs('outlineColor', 'outlineColorHex');
+syncColorInputs('shadowColor', 'shadowColorHex');
+syncColorInputs('bgColor', 'bgColorHex');
+
+// ===== PARSER =====
+function parseTime(t) {
+  t = t.trim().replace(',', '.');
+  const p = t.split(':');
+  if (p.length === 3) return +p[0] * 3600 + +p[1] * 60 + parseFloat(p[2]);
+  if (p.length === 2) return +p[0] * 60 + parseFloat(p[1]);
+  return parseFloat(t);
+}
+function parseSubFile(text, isVTT) {
+  if (isVTT) { text = text.replace(/WEBVTT.*?\n\n?/s, '').replace(/NOTE.*?\n\n/gs, '').replace(/<[^>]+>/g, ''); }
+  const blocks = text.trim().replace(/\r\n/g, '\n').split(/\n\n+/), subs = [];
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    let ti = -1;
+    for (let i = 0; i < lines.length; i++) { if (lines[i].includes('-->')) { ti = i; break; } }
+    if (ti === -1) continue;
+    const tp = lines[ti].split('-->').map(s => s.trim().replace(/ .*$/, ''));
+    const txt = lines.slice(ti + 1).join('\n').trim();
+    if (txt) subs.push({ start: parseTime(tp[0]), end: parseTime(tp[1]), text: txt });
+  }
+  return subs;
+}
+
+// ===== FILES =====
+document.getElementById('videoInput').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  videoFile = f;
+  document.getElementById('videoZone').classList.add('has-file');
+  document.getElementById('videoInfo').style.display = 'flex';
+  document.getElementById('videoFileName').textContent = f.name;
+  document.getElementById('videoFileSize').textContent = formatSize(f.size);
+  const v = document.getElementById('previewVideo');
+  v.src = URL.createObjectURL(f); v.style.display = 'block';
+  document.getElementById('previewPlaceholder').style.display = 'none';
+  document.getElementById('videoControls').classList.add('visible');
+  const ov = document.getElementById('subtitleOverlay');
+  ov.style.display = 'inline-block';
+  if (parsedSubLines.length > 0) ov.textContent = parsedSubLines[currentSubIndex];
+  checkReady(); updateEstimate(); updatePreview();
+});
+
+document.getElementById('subInput').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  subFile = f;
+  document.getElementById('subZone').classList.add('has-file');
+  document.getElementById('subInfo').style.display = 'flex';
+  document.getElementById('subFileName').textContent = f.name;
+  document.getElementById('subFileSize').textContent = formatSize(f.size);
+  try {
+    const txt = await f.text();
+    parsedSubs = parseSubFile(txt, f.name.toLowerCase().endsWith('.vtt'));
+    parsedSubLines = parsedSubs.map(s => s.text); currentSubIndex = 0;
+  } catch { parsedSubs = []; parsedSubLines = ['Sample Subtitle Text']; currentSubIndex = 0; }
+  const ov = document.getElementById('subtitleOverlay');
+  ov.style.display = 'inline-block';
+  ov.textContent = parsedSubLines[0] || 'Sample Subtitle Text';
+  if (parsedSubLines.length > 0) {
+    document.getElementById('subNav').classList.add('visible');
+    document.getElementById('subNavInfo').textContent = `1 / ${parsedSubLines.length}`;
+  }
+  updatePreview(); checkReady();
+});
+
+function removeFile(type) {
+  if (type === 'video') {
+    videoFile = null; stopSync();
+    document.getElementById('videoInput').value = '';
+    document.getElementById('videoZone').classList.remove('has-file');
+    document.getElementById('videoInfo').style.display = 'none';
+    document.getElementById('videoControls').classList.remove('visible');
+    const v = document.getElementById('previewVideo'); v.pause(); v.style.display = 'none'; v.src = '';
+    document.getElementById('previewPlaceholder').style.display = '';
+    if (!parsedSubLines.length) document.getElementById('subtitleOverlay').style.display = 'none';
+  } else {
+    subFile = null; parsedSubs = []; parsedSubLines = []; currentSubIndex = 0; stopSync();
+    document.getElementById('subInput').value = '';
+    document.getElementById('subZone').classList.remove('has-file');
+    document.getElementById('subInfo').style.display = 'none';
+    document.getElementById('subNav').classList.remove('visible');
+    const ov = document.getElementById('subtitleOverlay');
+    ov.textContent = 'Sample Subtitle Text';
+    if (!videoFile) ov.style.display = 'none';
+  }
+  checkReady(); updateEstimate();
+}
+function checkReady() { document.getElementById('processBtn').disabled = !(videoFile && subFile); }
+
+// ===== SUB NAV =====
+function navigateSub(dir) {
+  if (!parsedSubLines.length) return;
+  currentSubIndex = (currentSubIndex + dir + parsedSubLines.length) % parsedSubLines.length;
+  document.getElementById('subtitleOverlay').textContent = parsedSubLines[currentSubIndex];
+  document.getElementById('subNavInfo').textContent = `${currentSubIndex + 1} / ${parsedSubLines.length}`;
+  updatePreview();
+}
+
+// ===== VIDEO CONTROLS =====
+const vid = document.getElementById('previewVideo');
+const vcSeek = document.getElementById('vcSeek');
+
+function togglePlay() {
+  if (vid.paused) vid.play(); else vid.pause();
+}
+vid.addEventListener('play', () => {
+  document.getElementById('vcPlayBtn').textContent = '⏸';
+  if (parsedSubs.length) startSync();
+});
+vid.addEventListener('pause', () => {
+  document.getElementById('vcPlayBtn').textContent = '▶';
+  stopSync();
+  document.getElementById('subtitleOverlay').style.visibility = 'visible';
+});
+vid.addEventListener('timeupdate', () => {
+  if (!vid.duration) return;
+  const pct = (vid.currentTime / vid.duration) * 100;
+  vcSeek.value = pct;
+  updateSeekFill(pct);
+  document.getElementById('vcTime').textContent = fmtTime(vid.currentTime) + ' / ' + fmtTime(vid.duration);
+});
+vid.addEventListener('seeked', () => {
+  if (vid.paused && parsedSubs.length) {
+    const t = vid.currentTime, ov = document.getElementById('subtitleOverlay');
+    let found = false;
+    for (let i = 0; i < parsedSubs.length; i++) {
+      if (t >= parsedSubs[i].start && t <= parsedSubs[i].end) {
+        ov.textContent = parsedSubs[i].text; ov.style.visibility = 'visible';
+        currentSubIndex = i; found = true; break;
+      }
+    }
+    if (!found) ov.style.visibility = 'hidden';
+    updatePreview();
+  }
+});
+vcSeek.addEventListener('input', () => {
+  if (vid.duration) vid.currentTime = (vcSeek.value / 100) * vid.duration;
+  updateSeekFill(vcSeek.value);
+});
+
+// Volume
+const vcVol = document.getElementById('vcVol');
+vcVol.addEventListener('input', () => {
+  vid.volume = vcVol.value / 100;
+  vid.muted = false;
+  document.getElementById('vcMuteBtn').textContent = vid.volume === 0 ? '🔇' : '🔊';
+  updateVolFill(vcVol.value);
+});
+
+// Track fill helpers
+function updateSeekFill(pct) {
+  vcSeek.style.background = `linear-gradient(to right, #ff6b35 0%, #ff8f65 ${pct}%, #2a2a3d ${pct}%, #2a2a3d 100%)`;
+}
+function updateVolFill(pct) {
+  vcVol.style.background = `linear-gradient(to right, #8888a0 0%, #8888a0 ${pct}%, #2a2a3d ${pct}%, #2a2a3d 100%)`;
+}
+updateVolFill(100);
+function toggleMute() {
+  vid.muted = !vid.muted;
+  document.getElementById('vcMuteBtn').textContent = vid.muted ? '🔇' : '🔊';
+}
+
+// ===== VIDEO SYNC =====
+function startSync() { if (syncActive) return; syncActive = true; syncLoop(); }
+function stopSync() { syncActive = false; if (syncRAF) { cancelAnimationFrame(syncRAF); syncRAF = null; } }
+function syncLoop() {
+  if (!syncActive) return;
+  const t = vid.currentTime, ov = document.getElementById('subtitleOverlay');
+  let found = null;
+  for (let i = 0; i < parsedSubs.length; i++) {
+    if (t >= parsedSubs[i].start && t <= parsedSubs[i].end) { found = parsedSubs[i]; currentSubIndex = i; break; }
+  }
+  if (found) {
+    if (ov.textContent !== found.text) { ov.textContent = found.text; updatePreview(); }
+    ov.style.visibility = 'visible';
+    document.getElementById('subNavInfo').textContent = `${currentSubIndex + 1} / ${parsedSubs.length}`;
+  } else { ov.style.visibility = 'hidden'; }
+  syncRAF = requestAnimationFrame(syncLoop);
+}
+
+// ===== FULLSCREEN =====
+function toggleFullscreen() {
+  const c = document.getElementById('previewContainer');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else c.requestFullscreen().catch(() => {});
+}
+document.addEventListener('fullscreenchange', () => { setTimeout(updatePreview, 100); });
+
+// ===== BG TOGGLE =====
+document.getElementById('bgEnabled').addEventListener('change', (e) => {
+  const s = document.getElementById('bgSettings');
+  s.style.opacity = e.target.checked ? '1' : '0.4';
+  s.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+  updatePreview();
+});
+document.getElementById('bgOpacity').addEventListener('input', (e) => {
+  document.getElementById('bgOpacityVal').textContent = e.target.value + '%'; updatePreview();
+});
+
+// ===== POSITION =====
+document.querySelectorAll('.pos-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active'); selectedPosition = parseInt(btn.dataset.pos); updatePreview();
+  });
+});
+
+// ===== PREVIEW =====
+function updatePreview() {
+  const ov = document.getElementById('subtitleOverlay');
+  if (!ov || ov.style.display === 'none') return;
+
+  const fontSize = +document.getElementById('fontSize').value;
+  const fontFamily = document.getElementById('fontFamily').value;
+  const fontWeight = document.getElementById('fontWeight').value;
+  const fontColor = document.getElementById('fontColor').value;
+  const outlineSize = +document.getElementById('outlineSize').value;
+  const outlineColor = document.getElementById('outlineColor').value;
+  const shadowDepth = +document.getElementById('shadowDepth').value;
+  const shadowColor = document.getElementById('shadowColor').value;
+  const bgEnabled = document.getElementById('bgEnabled').checked;
+  const bgColor = document.getElementById('bgColor').value;
+  const bgOpacity = document.getElementById('bgOpacity').value / 100;
+  const marginV = +document.getElementById('marginV').value;
+  const bgRadius = +document.getElementById('bgRadius').value;
+  const bgPadV = +document.getElementById('bgPadding').value;
+  const bgPadH = +document.getElementById('bgPaddingH').value;
+
+  const container = document.getElementById('previewContainer');
+  const cW = container.clientWidth || 550;
+  const sf = cW / 1920;
+  const scaledFont = Math.max(8, Math.round(fontSize * sf));
+
+  ov.style.fontFamily = `"${fontFamily}", sans-serif`;
+  ov.style.fontSize = scaledFont + 'px';
+  ov.style.fontWeight = fontWeight;
+  ov.style.color = fontColor;
+  ov.style.whiteSpace = 'nowrap';
+
+  const shadows = [];
+  if (outlineSize > 0) {
+    const s = Math.max(1, Math.round(outlineSize * sf));
+    for (let x = -s; x <= s; x++) for (let y = -s; y <= s; y++) {
+      if (x === 0 && y === 0) continue;
+      shadows.push(`${x}px ${y}px 0 ${outlineColor}`);
+    }
+  }
+  if (shadowDepth > 0) {
+    const d = Math.max(1, Math.round(shadowDepth * sf));
+    shadows.push(`${d}px ${d}px ${d*2}px ${shadowColor}`);
+  }
+  ov.style.textShadow = shadows.join(', ');
+
+  if (bgEnabled) {
+    const r = parseInt(bgColor.slice(1,3),16), g = parseInt(bgColor.slice(3,5),16), b = parseInt(bgColor.slice(5,7),16);
+    ov.style.background = `rgba(${r},${g},${b},${bgOpacity})`;
+    ov.style.borderRadius = Math.max(0, Math.round(bgRadius * sf)) + 'px';
+    ov.style.padding = `${Math.max(0, Math.round(bgPadV * sf))}px ${Math.max(0, Math.round(bgPadH * sf))}px`;
+  } else {
+    ov.style.background = 'none'; ov.style.padding = '0'; ov.style.borderRadius = '0';
+  }
+
+  const m = Math.max(0, Math.round(marginV * sf)) + 'px';
+  ov.style.top = 'auto'; ov.style.bottom = 'auto'; ov.style.left = 'auto'; ov.style.right = 'auto'; ov.style.transform = 'none';
+
+  if ([7,8,9].includes(selectedPosition)) ov.style.top = m;
+  else if ([4,5,6].includes(selectedPosition)) ov.style.top = '50%';
+  else ov.style.bottom = m;
+
+  if ([7,4,1].includes(selectedPosition)) {
+    ov.style.left = m; ov.style.textAlign = 'left';
+    if (selectedPosition === 4) ov.style.transform = 'translateY(-50%)';
+  } else if ([9,6,3].includes(selectedPosition)) {
+    ov.style.right = m; ov.style.textAlign = 'right';
+    if (selectedPosition === 6) ov.style.transform = 'translateY(-50%)';
+  } else {
+    ov.style.left = '50%'; ov.style.textAlign = 'center';
+    ov.style.transform = selectedPosition === 5 ? 'translate(-50%,-50%)' : 'translateX(-50%)';
+  }
+}
+
+// Live preview listeners
+['fontFamily','fontSize','fontWeight','outlineSize','shadowDepth','marginV','bgRadius','bgPadding','bgPaddingH'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updatePreview);
+});
+['fontFamily','fontWeight','resolution'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => { updatePreview(); updateEstimate(); });
+});
+document.getElementById('maxFileSize').addEventListener('input', updateEstimate);
+document.getElementById('crfValue').addEventListener('input', updateEstimate);
+
+// ===== ESTIMATE =====
+function updateEstimate() {
+  const el = document.getElementById('estimatedSize');
+  if (!videoFile) { el.textContent = '— MB'; el.classList.remove('over-limit'); return; }
+  const origMB = videoFile.size / 1048576, res = document.getElementById('resolution').value;
+  const crf = parseInt(document.getElementById('crfValue').value) || 23;
+  const maxSz = parseInt(document.getElementById('maxFileSize').value) || 0;
+  let factor = 1;
+  if (res !== 'original') { const tp = res.split(':').reduce((a,b) => a * +b, 1); factor = Math.sqrt(tp / (1920*1080)); }
+  let est = origMB * factor * Math.pow(1.15, 23 - crf) * 0.85;
+  if (maxSz > 0 && est > maxSz) est = maxSz;
+  el.textContent = est.toFixed(1) + ' MB';
+  el.classList.toggle('over-limit', maxSz > 0 && est >= maxSz);
+}
+
+// ===== FFMPEG =====
+function showStatus(type, text) {
+  const m = document.getElementById('statusMsg'); m.className = 'status-msg visible ' + type;
+  document.getElementById('statusIcon').textContent = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+  document.getElementById('statusText').textContent = text;
+}
+function setProgress(pct, label) {
+  document.getElementById('progressContainer').classList.add('visible');
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = Math.round(pct) + '%';
+  if (label) document.getElementById('progressLabel').textContent = label;
+}
+
+async function startProcess() {
+  if (!videoFile || !subFile) return;
+  const btn = document.getElementById('processBtn');
+  btn.disabled = true; btn.textContent = '⏳ Processing...';
+  document.getElementById('downloadArea').classList.remove('visible');
+  document.getElementById('statusMsg').className = 'status-msg';
+
+  try {
+    // === SETTINGS ===
+    const fontSize = +document.getElementById('fontSize').value;
+    const fontFamily = document.getElementById('fontFamily').value;
+    const fontWeight = +document.getElementById('fontWeight').value;
+    const fontColor = document.getElementById('fontColor').value;
+    const outlineSize = +document.getElementById('outlineSize').value;
+    const outlineColor = document.getElementById('outlineColor').value;
+    const shadowDepth = +document.getElementById('shadowDepth').value;
+    const shadowColor = document.getElementById('shadowColor').value;
+    const bgEnabled = document.getElementById('bgEnabled').checked;
+    const bgColor = document.getElementById('bgColor').value;
+    const bgOpacity = document.getElementById('bgOpacity').value / 100;
+    const bgRadius = +document.getElementById('bgRadius').value;
+    const bgPadV = +document.getElementById('bgPadding').value;
+    const bgPadH = +document.getElementById('bgPaddingH').value;
+    const marginV = +document.getElementById('marginV').value;
+    const resSel = document.getElementById('resolution').value;
+
+    // === CREATE OFFSCREEN VIDEO ===
+    setProgress(5, 'Preparing video...');
+    showStatus('info', 'Setting up Canvas rendering pipeline...');
+
+    const srcVideo = document.createElement('video');
+    srcVideo.muted = true; // muted for autoplay policy
+    srcVideo.playsInline = true;
+    srcVideo.preload = 'auto';
+    srcVideo.src = URL.createObjectURL(videoFile);
+    await new Promise((res, rej) => {
+      srcVideo.onloadedmetadata = res;
+      srcVideo.onerror = () => rej(new Error('Failed to load video'));
+    });
+
+    let outW, outH;
+    if (resSel === 'original') {
+      outW = srcVideo.videoWidth; outH = srcVideo.videoHeight;
+    } else {
+      const parts = resSel.split(':');
+      outW = +parts[0]; outH = +parts[1];
+    }
+
+    // Scale font relative to output height (base: 1080p)
+    const fontScale = outH / 1080;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = outW; canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+
+    // === MEDIA RECORDER (video only) ===
+    const fps = 30;
+    const stream = canvas.captureStream(fps);
+
+    // Determine bitrate
+    const maxSz = parseInt(document.getElementById('maxFileSize').value) || 0;
+    const crf = parseInt(document.getElementById('crfValue').value) || 23;
+    let videoBps;
+    if (maxSz > 0) {
+      const dur = srcVideo.duration || 60;
+      videoBps = Math.floor((maxSz * 8 * 1024 * 1024 * 0.9) / dur); // 90% for video
+    } else {
+      // CRF to rough bitrate mapping (for 1080p baseline)
+      const baseBps = 5000000; // 5Mbps for CRF 23
+      videoBps = Math.round(baseBps * Math.pow(1.15, 23 - crf) * (outW * outH) / (1920 * 1080));
+    }
+    videoBps = Math.max(500000, Math.min(videoBps, 50000000));
+
+    let mimeType = 'video/webm;codecs=vp9';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm;codecs=vp8';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm';
+      }
+    }
+
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: videoBps });
+    const chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const recorderDone = new Promise(res => { recorder.onstop = res; });
+
+    // === DRAW SUBTITLE ON CANVAS ===
+    function drawSubtitle(text) {
+      if (!text) return;
+      const lines = text.split('\n');
+      const fs = Math.round(fontSize * fontScale);
+      const weightStr = fontWeight >= 700 ? 'bold' : fontWeight >= 500 ? '500' : 'normal';
+      ctx.font = `${weightStr} ${fs}px "${fontFamily}", sans-serif`;
+      ctx.textBaseline = 'middle';
+
+      // Use actual font metrics for accurate height
+      const metrics = ctx.measureText('Mg');
+      const actualLineH = (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+      const lineGap = fs * 0.3;
+      const lineHeight = actualLineH + lineGap;
+      const totalTextH = lines.length * actualLineH + (lines.length - 1) * lineGap;
+
+      // Measure max line width
+      let maxLineW = 0;
+      const lineWidths = [];
+      for (const line of lines) {
+        const w = ctx.measureText(line).width;
+        lineWidths.push(w);
+        if (w > maxLineW) maxLineW = w;
+      }
+
+      const padH = Math.round(bgPadH * fontScale);
+      const padV = Math.round(bgPadV * fontScale);
+      const rad = Math.round(bgRadius * fontScale);
+      const margin = Math.round(marginV * fontScale);
+
+      // Calculate block position
+      const blockW = maxLineW + padH * 2;
+      const blockH = totalTextH + padV * 2;
+
+      let blockX, blockY;
+
+      // Horizontal
+      if ([7, 4, 1].includes(selectedPosition)) blockX = margin;
+      else if ([9, 6, 3].includes(selectedPosition)) blockX = outW - blockW - margin;
+      else blockX = (outW - blockW) / 2;
+
+      // Vertical
+      if ([7, 8, 9].includes(selectedPosition)) blockY = margin;
+      else if ([4, 5, 6].includes(selectedPosition)) blockY = (outH - blockH) / 2;
+      else blockY = outH - blockH - margin;
+
+      // Draw background box
+      if (bgEnabled) {
+        const r = parseInt(bgColor.slice(1, 3), 16);
+        const g = parseInt(bgColor.slice(3, 5), 16);
+        const b = parseInt(bgColor.slice(5, 7), 16);
+        ctx.fillStyle = `rgba(${r},${g},${b},${bgOpacity})`;
+        ctx.beginPath();
+        ctx.roundRect(blockX, blockY, blockW, blockH, rad);
+        ctx.fill();
+      }
+
+      // Draw each line — Y is the vertical CENTER of each line
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lw = lineWidths[i];
+        let textX;
+        if ([7, 4, 1].includes(selectedPosition)) textX = blockX + padH;
+        else if ([9, 6, 3].includes(selectedPosition)) textX = blockX + blockW - padH - lw;
+        else textX = blockX + (blockW - lw) / 2;
+
+        // Center of line i within the box
+        const textY = blockY + padV + actualLineH / 2 + i * (actualLineH + lineGap);
+
+        // Shadow
+        if (shadowDepth > 0) {
+          const sd = Math.max(1, Math.round(shadowDepth * fontScale));
+          ctx.fillStyle = shadowColor;
+          ctx.globalAlpha = 0.6;
+          ctx.fillText(line, textX + sd, textY + sd);
+          ctx.globalAlpha = 1;
+        }
+
+        // Outline
+        if (outlineSize > 0) {
+          const os = Math.max(1, Math.round(outlineSize * fontScale));
+          ctx.strokeStyle = outlineColor;
+          ctx.lineWidth = os * 2;
+          ctx.lineJoin = 'round';
+          ctx.miterLimit = 2;
+          ctx.strokeText(line, textX, textY);
+        }
+
+        // Text
+        ctx.fillStyle = fontColor;
+        ctx.fillText(line, textX, textY);
+      }
+    }
+
+    // === RENDER LOOP (real-time playback for smooth output) ===
+    const duration = srcVideo.duration;
+    setProgress(10, 'Rendering frames...');
+    showStatus('info', 'Playing video to render subtitles — this runs in real-time...');
+
+    // Start recording
+    recorder.start(1000);
+
+    // Start real-time render loop on canvas
+    let renderDone = false;
+    const renderStartTime = performance.now();
+
+    function renderFrame() {
+      if (renderDone) return;
+
+      // Draw current video frame onto canvas
+      ctx.drawImage(srcVideo, 0, 0, outW, outH);
+
+      // Find active subtitle for current playback time
+      const t = srcVideo.currentTime;
+      let activeSub = null;
+      for (let i = 0; i < parsedSubs.length; i++) {
+        if (t >= parsedSubs[i].start && t <= parsedSubs[i].end) {
+          activeSub = parsedSubs[i]; break;
+        }
+      }
+      if (activeSub) drawSubtitle(activeSub.text);
+
+      // Update progress
+      const pct = 10 + Math.round((t / duration) * 75);
+      setProgress(pct, `Rendering... ${Math.round((t / duration) * 100)}%`);
+
+      requestAnimationFrame(renderFrame);
+    }
+
+    // Wait for video to be ready to play from start
+    srcVideo.currentTime = 0;
+    await new Promise(r => { srcVideo.onseeked = r; });
+
+    // Play at maximum speed the browser allows (1x for accurate recording)
+    srcVideo.playbackRate = 1;
+
+    const playbackDone = new Promise((resolve) => {
+      srcVideo.onended = resolve;
+      srcVideo.onpause = () => {
+        // If paused prematurely (e.g. at end), resolve
+        if (srcVideo.currentTime >= duration - 0.1) resolve();
+      };
+    });
+
+    srcVideo.play();
+    renderFrame();
+
+    // Wait for video to finish playing
+    await playbackDone;
+    renderDone = true;
+
+    // Draw final frame
+    ctx.drawImage(srcVideo, 0, 0, outW, outH);
+    const lastSub = parsedSubs.find(s => srcVideo.currentTime >= s.start && srcVideo.currentTime <= s.end);
+    if (lastSub) drawSubtitle(lastSub.text);
+
+    // Small delay to ensure final frames are captured
+    await new Promise(r => setTimeout(r, 500));
+
+    recorder.stop();
+    await recorderDone;
+
+    setProgress(88, 'Encoding video...');
+    showStatus('info', 'Assembling video file...');
+
+    const videoBlob = new Blob(chunks, { type: mimeType });
+
+    // === MUX AUDIO WITH FFMPEG ===
+    setProgress(90, 'Adding audio track...');
+
+    // Load FFmpeg for audio muxing only
+    if (!ffmpegLoaded) {
+      const OriginalWorker = window.Worker;
+      window.Worker = class PatchedWorker extends OriginalWorker {
+        constructor(scriptURL, options) {
+          if (typeof scriptURL === 'string' && scriptURL.startsWith('http')) {
+            const blob = new Blob([`importScripts("${scriptURL}");`], { type: 'text/javascript' });
+            super(URL.createObjectURL(blob), options);
+          } else if (scriptURL instanceof URL && scriptURL.protocol.startsWith('http')) {
+            const blob = new Blob([`importScripts("${scriptURL.toString()}");`], { type: 'text/javascript' });
+            super(URL.createObjectURL(blob), options);
+          } else { super(scriptURL, options); }
+        }
+      };
+
+      if (!window.FFmpegWASM) await loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js');
+      const { FFmpeg } = FFmpegWASM;
+      ffmpeg = new FFmpeg();
+      ffmpeg.on('log', ({ message }) => console.log('[FFmpeg]', message));
+      await ffmpeg.load({
+        coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+        wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
+      });
+      window.Worker = OriginalWorker;
+      ffmpegLoaded = true;
+    }
+
+    // Write rendered video (webm) and original video (for audio) to FFmpeg FS
+    const renderedBuf = await videoBlob.arrayBuffer();
+    const origBuf = await videoFile.arrayBuffer();
+    const ext = videoFile.name.split('.').pop().toLowerCase();
+
+    await ffmpeg.writeFile('rendered.webm', new Uint8Array(renderedBuf));
+    await ffmpeg.writeFile(`original.${ext}`, new Uint8Array(origBuf));
+
+    setProgress(93, 'Muxing audio + video...');
+
+    // Take video from rendered webm, audio from original, output mp4
+    await ffmpeg.exec([
+      '-i', 'rendered.webm',
+      '-i', `original.${ext}`,
+      '-map', '0:v:0',
+      '-map', '1:a:0?',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-shortest',
+      '-movflags', '+faststart',
+      'output.mp4'
+    ]);
+
+    setProgress(97, 'Saving file...');
+    const data = await ffmpeg.readFile('output.mp4');
+    const finalBlob = new Blob([data.buffer], { type: 'video/mp4' });
+    const url = URL.createObjectURL(finalBlob);
+
+    const dl = document.getElementById('downloadBtn');
+    dl.href = url;
+    dl.download = `${videoFile.name.replace(/\.[^.]+$/, '')}_subtitled.mp4`;
+    document.getElementById('downloadArea').classList.add('visible');
+    setProgress(100, 'Complete!');
+    showStatus('success', `Burn complete! File size: ${formatSize(finalBlob.size)}`);
+
+    // Cleanup
+    try {
+      await ffmpeg.deleteFile('rendered.webm');
+      await ffmpeg.deleteFile(`original.${ext}`);
+      await ffmpeg.deleteFile('output.mp4');
+    } catch (e) {}
+    URL.revokeObjectURL(srcVideo.src);
+
+  } catch (err) {
+    console.error(err);
+    showStatus('error', `Error: ${err.message}`);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔥 Start Burning Subtitles';
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script'); s.src = src;
+    s.onload = resolve; s.onerror = () => reject(new Error('Failed to load: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+// ===== PRESETS =====
+const PRESET_FIELDS = [
+  'fontFamily','fontSize','fontWeight','fontColor','outlineSize','outlineColor',
+  'shadowDepth','shadowColor','bgEnabled','bgColor','bgOpacity','bgRadius',
+  'bgPadding','bgPaddingH','marginV','resolution','maxFileSize','crfValue'
+];
+
+function getPresets() {
+  try { return JSON.parse(localStorage.getItem('subburn_presets') || '{}'); } catch { return {}; }
+}
+function savePresetsToStorage(presets) {
+  localStorage.setItem('subburn_presets', JSON.stringify(presets));
+}
+function refreshPresetList() {
+  const sel = document.getElementById('presetSelect');
+  const presets = getPresets();
+  sel.innerHTML = '<option value="">— Select preset —</option>';
+  Object.keys(presets).sort().forEach(name => {
+    const opt = document.createElement('option'); opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+}
+function savePreset() {
+  const name = document.getElementById('presetName').value.trim();
+  if (!name) { alert('Please enter a preset name.'); return; }
+  const data = { position: selectedPosition };
+  PRESET_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el.type === 'checkbox') data[id] = el.checked;
+    else data[id] = el.value;
+  });
+  // Also save hex fields
+  ['fontColorHex','outlineColorHex','shadowColorHex','bgColorHex'].forEach(id => {
+    data[id] = document.getElementById(id).value;
+  });
+  const presets = getPresets();
+  presets[name] = data;
+  savePresetsToStorage(presets);
+  refreshPresetList();
+  document.getElementById('presetSelect').value = name;
+  document.getElementById('presetName').value = '';
+  showStatus('success', `Preset "${name}" saved!`);
+  setTimeout(() => { document.getElementById('statusMsg').className = 'status-msg'; }, 2000);
+}
+function loadPreset() {
+  const name = document.getElementById('presetSelect').value;
+  if (!name) return;
+  const presets = getPresets();
+  const data = presets[name];
+  if (!data) return;
+  PRESET_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') {
+      el.checked = !!data[id];
+      el.dispatchEvent(new Event('change'));
+    } else if (data[id] !== undefined) {
+      el.value = data[id];
+    }
+  });
+  // Sync hex fields
+  ['fontColorHex','outlineColorHex','shadowColorHex','bgColorHex'].forEach(id => {
+    if (data[id]) document.getElementById(id).value = data[id];
+  });
+  // Restore position
+  if (data.position) {
+    selectedPosition = data.position;
+    document.querySelectorAll('.pos-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.pos) === selectedPosition);
+    });
+  }
+  // Update opacity display
+  document.getElementById('bgOpacityVal').textContent = document.getElementById('bgOpacity').value + '%';
+  updatePreview(); updateEstimate();
+  showStatus('success', `Preset "${name}" loaded!`);
+  setTimeout(() => { document.getElementById('statusMsg').className = 'status-msg'; }, 2000);
+}
+function deletePreset() {
+  const name = document.getElementById('presetSelect').value;
+  if (!name) return;
+  if (!confirm(`Delete preset "${name}"?`)) return;
+  const presets = getPresets();
+  delete presets[name];
+  savePresetsToStorage(presets);
+  refreshPresetList();
+}
+refreshPresetList();
+
+updatePreview();
+</script>
+</body>
+</html>
