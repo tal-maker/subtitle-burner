@@ -568,13 +568,23 @@ input[type="range"]::-webkit-slider-thumb {
     <!-- Output -->
     <div class="card full-width">
       <div class="card-title"><div class="icon">⚙️</div> Output Settings</div>
-      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px;">
+      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <div class="form-label">Aspect Ratio</div>
+          <select id="aspectRatio">
+            <option value="16:9" selected>16:9 Landscape</option>
+            <option value="9:16">9:16 Portrait</option>
+          </select>
+        </div>
         <div class="form-group">
           <div class="form-label">Resolution</div>
           <select id="resolution">
-            <option value="original">Original</option><option value="3840:2160">4K (3840×2160)</option>
-            <option value="1920:1080" selected>Full HD (1920×1080)</option><option value="1280:720">HD (1280×720)</option>
-            <option value="854:480">SD (854×480)</option><option value="640:360">360p (640×360)</option>
+            <option value="original">Original</option>
+            <option value="3840:2160">4K (3840×2160)</option>
+            <option value="1920:1080" selected>Full HD (1920×1080)</option>
+            <option value="1280:720">HD (1280×720)</option>
+            <option value="854:480">SD (854×480)</option>
+            <option value="640:360">360p (640×360)</option>
           </select>
         </div>
         <div class="form-group">
@@ -925,6 +935,50 @@ function updatePreview() {
 });
 document.getElementById('maxFileSize').addEventListener('input', updateEstimate);
 document.getElementById('crfValue').addEventListener('input', updateEstimate);
+
+// ===== ASPECT RATIO =====
+const RESOLUTIONS = {
+  '16:9': [
+    { value: 'original', label: 'Original' },
+    { value: '3840:2160', label: '4K (3840×2160)' },
+    { value: '1920:1080', label: 'Full HD (1920×1080)', default: true },
+    { value: '1280:720', label: 'HD (1280×720)' },
+    { value: '854:480', label: 'SD (854×480)' },
+    { value: '640:360', label: '360p (640×360)' },
+  ],
+  '9:16': [
+    { value: 'original', label: 'Original' },
+    { value: '2160:3840', label: '4K (2160×3840)' },
+    { value: '1080:1920', label: 'Full HD (1080×1920)', default: true },
+    { value: '720:1280', label: 'HD (720×1280)' },
+    { value: '480:854', label: 'SD (480×854)' },
+    { value: '360:640', label: '360p (360×640)' },
+  ]
+};
+
+function updateAspectRatio() {
+  const ratio = document.getElementById('aspectRatio').value;
+  const resSel = document.getElementById('resolution');
+  const opts = RESOLUTIONS[ratio];
+
+  // Update resolution options
+  resSel.innerHTML = '';
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.value; opt.textContent = o.label;
+    if (o.default) opt.selected = true;
+    resSel.appendChild(opt);
+  });
+
+  // Update preview container aspect ratio
+  const container = document.getElementById('previewContainer');
+  container.style.aspectRatio = ratio === '9:16' ? '9 / 16' : '16 / 9';
+
+  updatePreview();
+  updateEstimate();
+}
+
+document.getElementById('aspectRatio').addEventListener('change', updateAspectRatio);
 
 // ===== ESTIMATE =====
 function updateEstimate() {
@@ -1301,7 +1355,7 @@ function loadScript(src) {
 
 // ===== PRESETS =====
 const PRESET_FIELDS = [
-  'fontFamily','fontSize','fontWeight','fontColor','outlineSize','outlineColor',
+  'aspectRatio','fontFamily','fontSize','fontWeight','fontColor','outlineSize','outlineColor',
   'shadowDepth','shadowColor','bgEnabled','bgColor','bgOpacity','bgRadius',
   'bgPadding','bgPaddingH','marginV','resolution','maxFileSize','crfValue'
 ];
@@ -1349,7 +1403,15 @@ function loadPreset() {
   const presets = getPresets();
   const data = presets[name];
   if (!data) return;
+
+  // Set aspect ratio FIRST, then rebuild resolution options
+  if (data.aspectRatio) {
+    document.getElementById('aspectRatio').value = data.aspectRatio;
+    updateAspectRatio();
+  }
+
   PRESET_FIELDS.forEach(id => {
+    if (id === 'aspectRatio') return; // already handled
     const el = document.getElementById(id);
     if (!el) return;
     if (el.type === 'checkbox') {
