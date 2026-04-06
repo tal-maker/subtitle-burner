@@ -568,7 +568,7 @@ input[type="range"]::-webkit-slider-thumb {
     <!-- Output -->
     <div class="card full-width">
       <div class="card-title"><div class="icon">⚙️</div> Output Settings</div>
-      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 16px;">
+      <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
         <div class="form-group">
           <div class="form-label">Aspect Ratio</div>
           <select id="aspectRatio">
@@ -591,15 +591,26 @@ input[type="range"]::-webkit-slider-thumb {
           <div class="form-label">Export Format</div>
           <select id="outputFormat"><option value="mp4" selected>MP4 (H.264)</option></select>
         </div>
+      </div>
+      <div class="form-row" style="grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px;">
+        <div class="form-group">
+          <div class="form-label">Bitrate</div>
+          <select id="bitrateMode">
+            <option value="source" selected>Same as Source</option>
+            <option value="50000">50 Mbps (Ultra)</option>
+            <option value="20000">20 Mbps (High)</option>
+            <option value="10000">10 Mbps (Medium-High)</option>
+            <option value="5000">5 Mbps (Medium)</option>
+            <option value="2500">2.5 Mbps (Standard)</option>
+            <option value="1000">1 Mbps (Low)</option>
+            <option value="500">500 Kbps (Very Low)</option>
+          </select>
+          <div class="range-labels"><span id="bitrateInfo">Source: detecting...</span></div>
+        </div>
         <div class="form-group">
           <div class="form-label">Max File Size (MB)</div>
           <input type="number" id="maxFileSize" value="0" min="0" step="10" placeholder="0 = No limit">
           <div class="range-labels"><span>0 = No limit</span></div>
-        </div>
-        <div class="form-group">
-          <div class="form-label">Quality (CRF)</div>
-          <input type="number" id="crfValue" value="23" min="0" max="51" step="1">
-          <div class="range-labels"><span>0 = Best</span><span>51 = Lowest</span></div>
         </div>
       </div>
     </div>
@@ -625,6 +636,7 @@ let videoFile = null, subFile = null, selectedPosition = 2;
 let ffmpeg = null, ffmpegLoaded = false;
 let parsedSubs = [], parsedSubLines = [], currentSubIndex = 0;
 let syncActive = false, syncRAF = null;
+let sourceBitrate = 0; // detected source bitrate in kbps
 
 // ===== HELPERS =====
 function formatSize(b) {
@@ -685,6 +697,16 @@ document.getElementById('videoInput').addEventListener('change', (e) => {
   const ov = document.getElementById('subtitleOverlay');
   ov.style.display = 'inline-block';
   if (parsedSubLines.length > 0) ov.textContent = parsedSubLines[currentSubIndex];
+
+  // Detect source bitrate once metadata is loaded
+  v.addEventListener('loadedmetadata', function onMeta() {
+    v.removeEventListener('loadedmetadata', onMeta);
+    if (v.duration > 0) {
+      sourceBitrate = Math.round((f.size * 8) / (v.duration * 1000)); // kbps
+      document.getElementById('bitrateInfo').textContent = `Source: ${sourceBitrate >= 1000 ? (sourceBitrate / 1000).toFixed(1) + ' Mbps' : sourceBitrate + ' Kbps'}`;
+    }
+  });
+
   checkReady(); updateEstimate(); updatePreview();
 });
 
@@ -712,11 +734,12 @@ document.getElementById('subInput').addEventListener('change', async (e) => {
 
 function removeFile(type) {
   if (type === 'video') {
-    videoFile = null; stopSync();
+    videoFile = null; stopSync(); sourceBitrate = 0;
     document.getElementById('videoInput').value = '';
     document.getElementById('videoZone').classList.remove('has-file');
     document.getElementById('videoInfo').style.display = 'none';
     document.getElementById('videoControls').classList.remove('visible');
+    document.getElementById('bitrateInfo').textContent = 'Source: detecting...';
     const v = document.getElementById('previewVideo'); v.pause(); v.style.display = 'none'; v.src = '';
     document.getElementById('previewPlaceholder').style.display = '';
     if (!parsedSubLines.length) document.getElementById('subtitleOverlay').style.display = 'none';
@@ -875,7 +898,8 @@ function updatePreview() {
 
   const container = document.getElementById('previewContainer');
   const cW = container.clientWidth || 550;
-  const sf = cW / 1920;
+  const cH = container.clientHeight || 310;
+  const sf = Math.min(cW, cH) / 1080;
   const scaledFont = Math.max(8, Math.round(fontSize * sf));
 
   ov.style.fontFamily = `"${fontFamily}", sans-serif`;
@@ -934,7 +958,19 @@ function updatePreview() {
   document.getElementById(id).addEventListener('change', () => { updatePreview(); updateEstimate(); });
 });
 document.getElementById('maxFileSize').addEventListener('input', updateEstimate);
-document.getElementById('crfValue').addEventListener('input', updateEstimate);
+document.getElementById('bitrateMode').addEventListener('change', () => {
+  const mode = document.getElementById('bitrateMode').value;
+  const info = document.getElementById('bitrateInfo');
+  if (mode === 'source') {
+    info.textContent = sourceBitrate > 0
+      ? `Source: ${sourceBitrate >= 1000 ? (sourceBitrate / 1000).toFixed(1) + ' Mbps' : sourceBitrate + ' Kbps'}`
+      : 'Source: upload video to detect';
+  } else {
+    const kbps = parseInt(mode);
+    info.textContent = kbps >= 1000 ? `${(kbps / 1000).toFixed(1)} Mbps` : `${kbps} Kbps`;
+  }
+  updateEstimate();
+});
 
 // ===== ASPECT RATIO =====
 const RESOLUTIONS = {
@@ -985,12 +1021,24 @@ function updateEstimate() {
   const el = document.getElementById('estimatedSize');
   if (!videoFile) { el.textContent = '— MB'; el.classList.remove('over-limit'); return; }
   const origMB = videoFile.size / 1048576, res = document.getElementById('resolution').value;
-  const crf = parseInt(document.getElementById('crfValue').value) || 23;
   const maxSz = parseInt(document.getElementById('maxFileSize').value) || 0;
-  let factor = 1;
-  if (res !== 'original') { const tp = res.split(':').reduce((a,b) => a * +b, 1); factor = Math.sqrt(tp / (1920*1080)); }
-  let est = origMB * factor * Math.pow(1.15, 23 - crf) * 0.85;
-  if (maxSz > 0 && est > maxSz) est = maxSz;
+  const bitrateMode = document.getElementById('bitrateMode').value;
+  const vid = document.getElementById('previewVideo');
+  const dur = vid.duration || 60;
+
+  let est;
+  if (maxSz > 0) {
+    est = maxSz;
+  } else if (bitrateMode === 'source') {
+    // Same as source — estimate similar file size, adjusted for resolution change
+    let factor = 1;
+    if (res !== 'original') { const tp = res.split(':').reduce((a,b) => a * +b, 1); factor = Math.sqrt(tp / (1920*1080)); }
+    est = origMB * factor * 0.9;
+  } else {
+    // Fixed bitrate: (kbps * duration) / 8 / 1024 = MB
+    const kbps = parseInt(bitrateMode);
+    est = (kbps * dur) / 8 / 1024;
+  }
   el.textContent = est.toFixed(1) + ' MB';
   el.classList.toggle('over-limit', maxSz > 0 && est >= maxSz);
 }
@@ -1057,7 +1105,10 @@ async function startProcess() {
     }
 
     // Scale font relative to output height (base: 1080p)
-    const fontScale = outH / 1080;
+    // Scale based on the shorter dimension for consistent sizing across aspect ratios
+    // For 16:9 1920x1080: min = 1080, scale = 1.0
+    // For 9:16 1080x1920: min = 1080, scale = 1.0
+    const fontScale = Math.min(outW, outH) / 1080;
 
     const canvas = document.createElement('canvas');
     canvas.width = outW; canvas.height = outH;
@@ -1069,17 +1120,27 @@ async function startProcess() {
 
     // Determine bitrate
     const maxSz = parseInt(document.getElementById('maxFileSize').value) || 0;
-    const crf = parseInt(document.getElementById('crfValue').value) || 23;
+    const bitrateMode = document.getElementById('bitrateMode').value;
     let videoBps;
+
     if (maxSz > 0) {
+      // Max file size takes priority
       const dur = srcVideo.duration || 60;
-      videoBps = Math.floor((maxSz * 8 * 1024 * 1024 * 0.9) / dur); // 90% for video
+      videoBps = Math.floor((maxSz * 8 * 1024 * 1024 * 0.9) / dur);
+    } else if (bitrateMode === 'source') {
+      // Same as source — use detected bitrate, or estimate from file size
+      if (sourceBitrate > 0) {
+        videoBps = sourceBitrate * 1000; // kbps to bps
+      } else {
+        // Fallback: estimate from file size / duration
+        const dur = srcVideo.duration || 60;
+        videoBps = Math.floor((videoFile.size * 8 * 0.9) / dur);
+      }
     } else {
-      // CRF to rough bitrate mapping (for 1080p baseline)
-      const baseBps = 5000000; // 5Mbps for CRF 23
-      videoBps = Math.round(baseBps * Math.pow(1.15, 23 - crf) * (outW * outH) / (1920 * 1080));
+      // Fixed bitrate from selector (value in kbps)
+      videoBps = parseInt(bitrateMode) * 1000;
     }
-    videoBps = Math.max(500000, Math.min(videoBps, 50000000));
+    videoBps = Math.max(500000, Math.min(videoBps, 60000000));
 
     let mimeType = 'video/webm;codecs=vp9';
     if (!MediaRecorder.isTypeSupported(mimeType)) {
@@ -1357,7 +1418,7 @@ function loadScript(src) {
 const PRESET_FIELDS = [
   'aspectRatio','fontFamily','fontSize','fontWeight','fontColor','outlineSize','outlineColor',
   'shadowDepth','shadowColor','bgEnabled','bgColor','bgOpacity','bgRadius',
-  'bgPadding','bgPaddingH','marginV','resolution','maxFileSize','crfValue'
+  'bgPadding','bgPaddingH','marginV','resolution','bitrateMode','maxFileSize'
 ];
 
 function getPresets() {
